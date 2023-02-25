@@ -58,6 +58,7 @@ bool BiliBiliHelper::writeSubtitle(const std::string &path, const JsonSubtitle &
         out.print("{}\n{} --> {}\n{}\n\n", x, format_time(i.from), format_time(i.to), i.content);
         ++x;
     }
+    return true;
 }
 
 std::string BiliBiliHelper::format_time(float seconds) {
