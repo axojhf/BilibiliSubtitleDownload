@@ -5,28 +5,40 @@
 #include <glaze/core/macros.hpp>
 #include <glaze/glaze.hpp>
 
-struct JsonVideoInfoData
-{
-    uint64_t aid;
-    uint64_t cid;
-
-    GLZ_LOCAL_META(JsonVideoInfoData, aid, cid);
-};
-
-struct JsonVideoInfo
-{
-    uint8_t code;
-    JsonVideoInfoData data;
-
-    GLZ_LOCAL_META(JsonVideoInfo, code, data);
-};
-
 struct JsonPlayerSubtitleDataSubtitleSubtitleStruct
 {
     std::string lan;
     std::string subtitle_url;
 
     GLZ_LOCAL_META(JsonPlayerSubtitleDataSubtitleSubtitleStruct, lan, subtitle_url);
+};
+
+struct JsonVideoInfoDataSubtitle
+{
+    std::vector<JsonPlayerSubtitleDataSubtitleSubtitleStruct> list;
+
+    GLZ_LOCAL_META(JsonVideoInfoDataSubtitle, list);
+};
+
+struct JsonVideoInfoData
+{
+    uint64_t aid;
+    uint64_t cid;
+    JsonVideoInfoDataSubtitle subtitle;
+
+    GLZ_LOCAL_META(JsonVideoInfoData, aid, cid, subtitle);
+};
+
+/**
+ * @brief api.bilibili.com/x/web-interface/view 获取的Json数据结构
+ *
+ */
+struct JsonVideoInfo
+{
+    uint8_t code;
+    JsonVideoInfoData data;
+
+    GLZ_LOCAL_META(JsonVideoInfo, code, data);
 };
 
 struct JsonPlayerSubtitleDataSubtitle

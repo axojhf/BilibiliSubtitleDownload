@@ -5,7 +5,16 @@
 #include <string>
 #include <opencc/opencc.h>
 
-inline std::string convert(const std::string &input, const std::string &configFileName);
+/**
+ * Convert the input utf-8 zh-Hant string to the zh-Hans string.
+ * @param input The input string.
+ * @param configFileName The config file name.
+ * @return The converted string.
+ */
+inline std::string convert(const std::string &input, const std::string &configFileName)
+{
+    const opencc::SimpleConverter converter(configFileName);
+    return converter.Convert(input);
+}
 
-
-#endif //BILIBILISUBTITLEDOWNLOAD_CONVERT_H
+#endif // BILIBILISUBTITLEDOWNLOAD_CONVERT_H

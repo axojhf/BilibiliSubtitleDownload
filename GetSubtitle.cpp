@@ -1,67 +1,152 @@
 #include "GetSubtitle.h"
+#include "convert.h"
 
-
-bool BiliBiliHelper::praseVideoInfoCid(const std::string &id) {
-    //当id前两位为BV时，使用bvid接口，否则使用aid接口
-    if (id.substr(0, 2) == "BV") {
+/**
+ * @brief Prase the video info and set the cid.
+ *
+ * @param id bvid or aid
+ * @return true
+ * @return false
+ */
+bool BiliBiliHelper::praseVideoInfoCid(const std::string &id)
+{
+    // 当id前两位为BV时，使用bvid接口，否则使用aid接口
+    // 这个接口可能存在字幕信息，但是如果没有字幕，可以访问另一个接口获取字幕信息（可能是AI翻译的）
+    if (id.substr(0, 2) == "BV")
+    {
         session.SetUrl(cpr::Url("https://api.bilibili.com/x/web-interface/view?bvid=" + id));
-    } else if (id.substr(0, 2) == "av") {
+    }
+    else if (id.substr(0, 2) == "av")
+    {
         session.SetUrl(cpr::Url("https://api.bilibili.com/x/web-interface/view?aid=" + id.substr(2)));
-    } else {
+    }
+    else
+    {
         throw std::runtime_error("Unknown id type, input aid or BVID");
     }
     auto response = session.Get();
-    if (response.status_code != 200) {
+    if (response.status_code != 200)
+    {
         throw std::runtime_error("Error: Failed to get video info\n");
     }
     auto s = JsonVideoInfo{};
     glz::read<glz::opts{.error_on_unknown_keys = false}>(s, response.text);
-    cid = s.data.cid;
-    aid = s.data.aid;
+    if(s.data.subtitle.list.empty())
+    {
+        return false;
+    }
+    // if (s.data.subtitle.list.empty())
+    // {
+    //     session.SetUrl(cpr::Url(
+    //         "https://api.bilibili.com/x/player/v2?aid=" + std::to_string(s.data.aid) + "&cid=" + std::to_string(s.data.cid)));
+    //     auto r = session.Get();
+    //     if (r.status_code != 200)
+    //     {
+    //         throw std::runtime_error("Error: Failed to get subtitle");
+    //     }
+    //     auto s2 = JsonPlayerSubtitle{};
+    //     glz::read<glz::opts{.error_on_unknown_keys = false}>(s2, r.text);
+    //     s.data.subtitle.list = std::move(s2.data.subtitle.subtitles);
+    // }
+    // 在s.data.subtitle里优先找到lan为zh-Hans的字幕
+    for (auto &&i : s.data.subtitle.list)
+    {
+        // 如果找到了，就解析字幕
+        if (i.lan == "zh-Hans" || i.lan == "ai-zh")
+        {
+            this->subtitle_url = i.subtitle_url;
+            this->isExistSubtitle = true;
+            this->subtitle_lan = 0;
+            break;
+        }
+        // 如果没有找到，就找lan为zh-Hant的字幕
+        else if (i.lan == "zh-Hant")
+        {
+            this->subtitle_url = i.subtitle_url;
+            this->isExistSubtitle = true;
+            this->subtitle_lan = 1;
+        }
+        else
+        {
+            this->subtitle_url = i.subtitle_url;
+            this->isExistSubtitle = true;
+            this->subtitle_lan = 2;
+        }
+    }
     return true;
 }
 
-JsonSubtitle BiliBiliHelper::getSubtitle() {
-    session.SetUrl(cpr::Url(
-            "https://api.bilibili.com/x/player/v2?aid=" + std::to_string(aid) + "&cid=" + std::to_string(cid)));
-    auto r = session.Get();
-    if (r.status_code != 200) {
-        throw std::runtime_error("Error: Failed to get subtitle");
+/**
+ * @brief Get the subtitle object
+ *
+ * @return bool
+ */
+bool BiliBiliHelper::getSubtitle()
+{
+    if (!this->isExistSubtitle)
+    {
+        throw std::runtime_error("Error: No subtitle url");
     }
-    auto s = JsonPlayerSubtitle{};
-    glz::read<glz::opts{.error_on_unknown_keys = false}>(s, r.text);
-    if (s.data.subtitle.subtitles.empty()) {
-        throw std::runtime_error("Error: No subtitle found");
-    }
-    auto url = s.data.subtitle.subtitles[0].subtitle_url;
-    session.SetUrl(cpr::Url("https:" + url));
+    session.SetUrl(cpr::Url(this->subtitle_url));
     auto r2 = session.Get();
-    if (r2.status_code != 200) {
+    if (r2.status_code != 200)
+    {
         throw std::runtime_error("Error: Failed to get subtitle");
     }
-    auto ans = JsonSubtitle{};
-    glz::read<glz::opts{.error_on_unknown_keys = false}>(ans, r2.text);
-    return ans;
+    if (this->subtitle_lan == 0 || this->subtitle_lan == 2)
+    {
+        glz::read<glz::opts{.error_on_unknown_keys = false}>(this->subtitle, r2.text);
+    }
+    else if (this->subtitle_lan == 1)
+    {
+        auto zh_hans = convert(r2.text, "t2sextend.json");
+        glz::read<glz::opts{.error_on_unknown_keys = false}>(this->subtitle, zh_hans);
+    }
+    else
+    {
+        throw std::runtime_error("Error: Unknown subtitle lan");
+    }
+    return true;
 }
 
-BiliBiliHelper::BiliBiliHelper() {
+/**
+ * @brief Construct a new Bili Bili Helper:: Bili Bili Helper object
+ */
+BiliBiliHelper::BiliBiliHelper()
+{
     session.SetUserAgent(cpr::UserAgent(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36 Edg/110.0.1587.41"));
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36 Edg/110.0.1587.41"));
     session.SetAcceptEncoding(cpr::AcceptEncoding(
-            {cpr::AcceptEncodingMethods::deflate, cpr::AcceptEncodingMethods::gzip, cpr::AcceptEncodingMethods::zlib}));
+        {cpr::AcceptEncodingMethods::deflate, cpr::AcceptEncodingMethods::gzip, cpr::AcceptEncodingMethods::zlib}));
 }
 
-bool BiliBiliHelper::writeSubtitle(const std::string &path, const JsonSubtitle &jsonSubtitle) {
+/**
+ * @brief Write the subtitle to a file
+ *
+ * @param path The path of the file
+ * @return true
+ * @return false
+ */
+bool BiliBiliHelper::writeSubtitle(const std::string &path)
+{
     auto out = fmt::output_file(path);
     int x = 1;
-    for (auto &i: jsonSubtitle.body) {
+    for (auto &&i : this->subtitle.body)
+    {
         out.print("{}\n{} --> {}\n{}\n\n", x, format_time(i.from), format_time(i.to), i.content);
         ++x;
     }
     return true;
 }
 
-std::string BiliBiliHelper::format_time(float seconds) {
+/**
+ * @brief Format the time to a string
+ *
+ * @param seconds
+ * @return std::string
+ */
+std::string BiliBiliHelper::format_time(float seconds)
+{
     int total_milliseconds = static_cast<int>(seconds * 1000);
     int hours = total_milliseconds / (1000 * 60 * 60);
     int minutes = (total_milliseconds / (1000 * 60)) % 60;
@@ -74,5 +159,9 @@ std::string BiliBiliHelper::format_time(float seconds) {
         << std::setw(2) << seconds_int << ","
         << std::setw(3) << milliseconds;
     return oss.str();
+}
 
+void BiliBiliHelper::setProxy(const std::string &proxy)
+{
+    session.SetProxies(cpr::Proxies{{"http", proxy}, {"https", proxy}});
 }
