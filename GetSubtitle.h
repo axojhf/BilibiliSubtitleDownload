@@ -16,19 +16,13 @@ private:
      */
     cpr::Session session{};
     /**
-     * @brief 视频cid
-     */
-    uint64_t cid{0};
-    /**
-     * @brief 视频aid
-     */
-    uint64_t aid{0};
-    /**
      * @brief 是否存在字幕
      */
     bool isExistSubtitle{false};
 
     std::string subtitle_url{};
+
+    uint64_t index{1};
 
     /**
      * @brief 字幕语言
@@ -41,7 +35,7 @@ private:
 public:
     BiliBiliHelper();
 
-    bool praseVideoInfoCid(const std::string &id);
+    bool praseVideo(const std::string &id);
 
     bool getSubtitle();
 
@@ -50,6 +44,13 @@ public:
     std::string format_time(float seconds);
 
     void setProxy(const std::string &proxy);
+
+    void setIndex(uint64_t index);
+
+private:
+    bool praseNormalVideo(const std::string &url);
+
+    bool praseBangumiVideo(const std::string &url);
 };
 
 #endif // BILIBILISUBTITLEDOWNLOAD_GETSUBTITLE_H

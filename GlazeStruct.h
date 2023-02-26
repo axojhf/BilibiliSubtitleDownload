@@ -22,11 +22,11 @@ struct JsonVideoInfoDataSubtitle
 
 struct JsonVideoInfoData
 {
-    uint64_t aid;
-    uint64_t cid;
+    // uint64_t aid;
+    // uint64_t cid;
     JsonVideoInfoDataSubtitle subtitle;
 
-    GLZ_LOCAL_META(JsonVideoInfoData, aid, cid, subtitle);
+    GLZ_LOCAL_META(JsonVideoInfoData, subtitle);
 };
 
 /**
@@ -78,6 +78,29 @@ struct JsonSubtitle
     std::vector<JsonSubtitleBody> body;
 
     GLZ_LOCAL_META(JsonSubtitle, body);
+};
+
+//--------------------------------------------
+// 解析ep，ss的Json数据结构
+//--------------------------------------------
+
+struct EpSsJsonResultEpisode {
+    std::string bvid;
+
+    GLZ_LOCAL_META(EpSsJsonResultEpisode, bvid);
+};
+
+struct EpSsJsonResult {
+    std::vector<EpSsJsonResultEpisode> episodes;
+
+    GLZ_LOCAL_META(EpSsJsonResult, episodes);
+};
+
+struct EpSsJson {
+    int64_t code;
+    EpSsJsonResult result;
+
+    GLZ_LOCAL_META(EpSsJson, code, result);
 };
 
 #endif // BILIBILISUBTITLEDOWNLOAD_GLAZESTRUCT_H

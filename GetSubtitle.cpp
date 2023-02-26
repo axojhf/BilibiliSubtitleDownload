@@ -2,78 +2,37 @@
 #include "convert.h"
 
 /**
- * @brief Prase the video info and set the cid.
- *
- * @param id bvid or aid
+ * @brief Prase the video info
+ * @param id bvid or aid or ss or ep
  * @return true
  * @return false
  */
-bool BiliBiliHelper::praseVideoInfoCid(const std::string &id)
+bool BiliBiliHelper::praseVideo(const std::string &id)
 {
+    auto result = false;
     // 当id前两位为BV时，使用bvid接口，否则使用aid接口
     // 这个接口可能存在字幕信息，但是如果没有字幕，可以访问另一个接口获取字幕信息（可能是AI翻译的）
     if (id.substr(0, 2) == "BV")
     {
-        session.SetUrl(cpr::Url("https://api.bilibili.com/x/web-interface/view?bvid=" + id));
+        result = praseNormalVideo("https://api.bilibili.com/x/web-interface/view?bvid=" + id);
     }
     else if (id.substr(0, 2) == "av")
     {
-        session.SetUrl(cpr::Url("https://api.bilibili.com/x/web-interface/view?aid=" + id.substr(2)));
+        result = praseNormalVideo("https://api.bilibili.com/x/web-interface/view?aid=" + id.substr(2));
     }
+    else if(id.substr(0, 2) == "ss")
+    {
+        result = praseBangumiVideo("https://api.bilibili.com/pgc/view/web/season?season_id=" + id.substr(2));
+    }
+    else if(id.substr(0, 2) == "ep")
+    {
+        result = praseBangumiVideo("https://api.bilibili.com/pgc/view/web/season?ep_id=" + id.substr(2));
+    }    
     else
     {
-        throw std::runtime_error("Unknown id type, input aid or BVID");
+        throw std::runtime_error("Unknown id type, input aid or BVID or ss or ep");
     }
-    auto response = session.Get();
-    if (response.status_code != 200)
-    {
-        throw std::runtime_error("Error: Failed to get video info\n");
-    }
-    auto s = JsonVideoInfo{};
-    glz::read<glz::opts{.error_on_unknown_keys = false}>(s, response.text);
-    if(s.data.subtitle.list.empty())
-    {
-        return false;
-    }
-    // if (s.data.subtitle.list.empty())
-    // {
-    //     session.SetUrl(cpr::Url(
-    //         "https://api.bilibili.com/x/player/v2?aid=" + std::to_string(s.data.aid) + "&cid=" + std::to_string(s.data.cid)));
-    //     auto r = session.Get();
-    //     if (r.status_code != 200)
-    //     {
-    //         throw std::runtime_error("Error: Failed to get subtitle");
-    //     }
-    //     auto s2 = JsonPlayerSubtitle{};
-    //     glz::read<glz::opts{.error_on_unknown_keys = false}>(s2, r.text);
-    //     s.data.subtitle.list = std::move(s2.data.subtitle.subtitles);
-    // }
-    // 在s.data.subtitle里优先找到lan为zh-Hans的字幕
-    for (auto &&i : s.data.subtitle.list)
-    {
-        // 如果找到了，就解析字幕
-        if (i.lan == "zh-Hans" || i.lan == "ai-zh")
-        {
-            this->subtitle_url = i.subtitle_url;
-            this->isExistSubtitle = true;
-            this->subtitle_lan = 0;
-            break;
-        }
-        // 如果没有找到，就找lan为zh-Hant的字幕
-        else if (i.lan == "zh-Hant")
-        {
-            this->subtitle_url = i.subtitle_url;
-            this->isExistSubtitle = true;
-            this->subtitle_lan = 1;
-        }
-        else
-        {
-            this->subtitle_url = i.subtitle_url;
-            this->isExistSubtitle = true;
-            this->subtitle_lan = 2;
-        }
-    }
-    return true;
+    return result;
 }
 
 /**
@@ -164,4 +123,75 @@ std::string BiliBiliHelper::format_time(float seconds)
 void BiliBiliHelper::setProxy(const std::string &proxy)
 {
     session.SetProxies(cpr::Proxies{{"http", proxy}, {"https", proxy}});
+}
+
+/// @brief 设置分P的位置，默认不设置为1
+/// @param index 
+void BiliBiliHelper::setIndex(uint64_t index)
+{
+    this->index = index;
+}
+
+/// @brief 解析av号或者bv号的普通视频
+/// @param url 目标url
+bool BiliBiliHelper::praseNormalVideo(const std::string &url)
+{
+    session.SetUrl(cpr::Url(url));
+    auto response = session.Get();
+    if (response.status_code != 200)
+    {
+        throw std::runtime_error("Error: Failed to get video info\n");
+    }
+    auto s = JsonVideoInfo{};
+    glz::read<glz::opts{.error_on_unknown_keys = false}>(s, response.text);
+    if (s.data.subtitle.list.empty())
+    {
+        return false;
+    }
+    // 在s.data.subtitle里优先找到lan为zh-Hans的字幕
+    for (auto &&i : s.data.subtitle.list)
+    {
+        // 如果找到了，就解析字幕
+        if (i.lan == "zh-Hans" || i.lan == "ai-zh")
+        {
+            this->subtitle_url = i.subtitle_url;
+            this->isExistSubtitle = true;
+            this->subtitle_lan = 0;
+            break;
+        }
+        // 如果没有找到，就找lan为zh-Hant的字幕
+        else if (i.lan == "zh-Hant")
+        {
+            this->subtitle_url = i.subtitle_url;
+            this->isExistSubtitle = true;
+            this->subtitle_lan = 1;
+        }
+        else
+        {
+            this->subtitle_url = i.subtitle_url;
+            this->isExistSubtitle = true;
+            this->subtitle_lan = 2;
+        }
+    }
+    return true;
+}
+
+/// @brief 解析ss号或者ep号的番剧/影视视频
+/// @param url 目标url
+bool BiliBiliHelper::praseBangumiVideo(const std::string &url)
+{
+    session.SetUrl(cpr::Url(url));
+    auto response = session.Get();
+    if (response.status_code != 200)
+    {
+        throw std::runtime_error("Error: status_code Error Failed to get ep/ss info\n");
+    }
+    auto s = EpSsJson{};
+    glz::read<glz::opts{.error_on_unknown_keys = false}>(s, response.text);
+    if (s.code != 0 || s.result.episodes.empty() || index > s.result.episodes.size())
+    {
+        throw std::runtime_error("Error: api code Error Failed to get ep/ss info\n");
+    }
+    auto result = praseNormalVideo("https://api.bilibili.com/x/web-interface/view?bvid=" + s.result.episodes[index - 1].bvid);
+    return result;
 }
